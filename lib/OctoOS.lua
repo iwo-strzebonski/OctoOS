@@ -2,13 +2,11 @@ require("lib.Monitor")
 require("lib.Printer")
 require("lib.Turtle")
 
-local pretty = require("cc.pretty")
-
 OctoOS = {
   _os = {
-    name = nil,
-    version = nil,
-    author = nil,
+    name = "OctoOS",
+    version = "0.2",
+    author = "Octoturge",
     type = nil,
     peripherals = {},
     turtle = nil
@@ -52,9 +50,6 @@ function OctoOS:new(o)
   self.__index = self
 
   self._os = {}
-  self._os["name"] = "OctoOS"
-  self._os["version"] = "0.1"
-  self._os["author"] = "Octoturge"
   self._os["type"] = turtle and "turtle" or "computer"
   self._os["peripherals"] = {
     top = {},
@@ -93,6 +88,7 @@ function OctoOS:start()
   print("OctoOS " .. self._os["version"] .. " loaded.")
   print("Author: " .. self._os["author"])
   print("Type: " .. self._os["type"])
+  print()
 end
 
 function OctoOS:peripheral(side)
@@ -133,20 +129,28 @@ function OctoOS:turtleloop()
 
     print("Select an option:")
     print("0. Create new config")
+    print("99. Exit")
 
     for i, config in ipairs(availableConfigs) do
-      print(i .. ". " .. config)
+      print(i .. ". Run " .. config)
     end
 
     local option = tonumber(io.read())
 
     if option == 0 then
+      print("Creating new config.")
       self._os["turtle"]:newConfig()
     elseif option ~= nil and option <= #availableConfigs then
       self._os["turtle"]:loadConfig(availableConfigs[option])
       self._os["turtle"]:runConfig()
+    elseif option == 99 then
+      print()
+      print("Exiting.")
+      print("Thank you for using OctoOS " .. self._os["version"] .. "for " .. self._os["type"] .. ".")
+      break
     else
-      error("Invalid option.")
+      print("Invalid option.")
+      print()
     end
   end
 end

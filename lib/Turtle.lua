@@ -1,4 +1,6 @@
-Turtle = { type = "turtle", _config = {} }
+require("lib.Helpers")
+
+Turtle = { type = "turtle", _config = {}, minfuel = 200 }
 
 function Turtle:new(o, side)
   side = side or "right"
@@ -9,9 +11,6 @@ function Turtle:new(o, side)
 
   fs.makeDir("turtle")
   fs.makeDir("turtle/config")
-  fs.makeDir("turtle/logs")
-
-  self:loadConfigs()
 
   return o
 end
@@ -34,7 +33,7 @@ function Turtle:saveConfig(name)
   --- @diagnostic disable-next-line: param-type-mismatch
   name = name or os.time(os.date('!*t'))
 
-  local file = fs.open("turtle/config/" .. name, "w")
+  local file = fs.open("turtle/config/" .. name .. ".cfg", "w")
   file.write(textutils.serialize(self._config))
   file.close()
 end
@@ -43,36 +42,38 @@ function Turtle:newConfig()
   self._config = {}
   local newConfigFinished = false
 
-  while newConfigFinished do
-    newConfigFinished = self._os["turtle"]:getCommand()
+  while not newConfigFinished do
+    newConfigFinished = self:getCommand()
   end
+  self:saveConfig()
 end
 
 function Turtle:runConfig()
-  -- TODO: Implement this
+  self:fuel()
 
   for _, command in ipairs(self._config) do
-    if command[1] == "go" then
-      self:go(command[2], command[3])
-    elseif command[1] == "dig" then
-      self:dig(command[2], command[3])
-    elseif command[1] == "tunnel" then
-      self:tunnel(command[2], command[3])
-    elseif command[1] == "home" then
+    if command["command"] == "go" then
+      self:go(command["arg1"], command["arg2"])
+    elseif command["command"] == "dig" then
+      self:dig(command["arg1"], command["arg2"])
+    elseif command["command"] == "tunnel" then
+      self:tunnel(command["arg1"], command["arg2"])
+    elseif command["command"] == "home" then
       -- TODO: Implement this
-    elseif command[1] == "end" then
+    elseif command["command"] == "end" then
       break
     end
   end
 
+  print("Finished running config")
   self._config = {}
 end
 
 function Turtle:tryParseConfigLine(line)
-  lineData = {}
+  local lineData = {}
 
   local allowedCommands = { "go", "dig", "tunnel", "home", "end" }
-  local multiargument = { "go", "dig" }
+  local multiargument = { "go", "dig", "tunnel" }
   local zeroargument = { "home", "end" }
 
   for token in string.gmatch(line, "[^%s]+") do
@@ -83,53 +84,80 @@ function Turtle:tryParseConfigLine(line)
     error("Invalid config line: " .. line .. " (missing command)")
   end
 
+  if not Helpers.contains(allowedCommands, lineData[1]) then
+    error("Invalid config line: " .. line .. " (invalid command)")
+  end
   lineData[1] = string.lower(lineData[1])
 
-  if not zeroargument[lineData[1]] then
+  if not Helpers.contains(zeroargument, lineData[1]) then
     if lineData[2] == nil then
       error("Invalid config line: " .. line .. " (missing value)")
     end
 
-    if tonumber(lineData[2]) == nil and lineData[1] ~= "go" then
+    if tonumber(lineData[2]) == nil and not Helpers.contains(multiargument, lineData[1]) then
       error("Invalid config line: " .. line .. " (value is not a number)")
     end
 
-    if lineData[3] ~= nil and not multiargument[lineData[1]] then
+    if not Helpers.contains(multiargument, lineData[1]) and lineData[3] ~= nil then
       error("Invalid config line: " .. line .. " (too many arguments)")
+    else
+      if lineData[3] == nil or tonumber(lineData[3]) == nil or tonumber(lineData[3]) < 0 then
+        error("Invalid config line: " .. line .. " (missing value or value is not a number)")
+      else
+        lineData[3] = tonumber(lineData[3])
+      end
     end
 
     if lineData[1] == "go" then
       local directions = { "forward", "back", "up", "down", "left", "right" }
 
-      if not directions[lineData[1]] then
+      if not Helpers.contains(directions, lineData[2]) then
         error("Invalid config line: " .. line .. " (invalid direction)")
       end
     elseif lineData[1] == "dig" then
-      if lineData[3] == nil then
-        lineData[3] = 1
-      elseif tonumber(lineData[3]) == nil then
-        error("Invalid config line: " .. line .. " (size is not a number)")
+      local directions = { "forward", "up", "down" }
+
+      if not Helpers.contains(directions, lineData[2]) then
+        error("Invalid config line: " .. line .. " (invalid direction)")
       end
+    elseif lineData[1] == "tunnel" then
+      if tonumber(lineData[2]) == nil or tonumber(lineData[2]) < 0 then
+        error("Invalid config line: " .. line .. " (invalid distance)")
+      end
+
+      if tonumber(lineData[3]) == nil or tonumber(lineData[3]) < 0 then
+        error("Invalid config line: " .. line .. " (invalid size)")
+      end
+
+      lineData[2] = tonumber(lineData[2])
     end
 
-    lineData[2] = tonumber(lineData[2])
+    if not Helpers.contains(multiargument, lineData[1]) then
+      lineData[2] = tonumber(lineData[2])
+    end
   end
 
-  return lineData
+  local commandLine = {
+    ["command"] = lineData[1],
+    ["arg1"] = lineData[2],
+    ["arg2"] = lineData[3],
+    ["arg3"] = lineData[4]
+  }
+
+  return commandLine
 end
 
 function Turtle:getCommand()
   print("Enter a command:")
   local command = io.read()
 
-  local commandData = self:tryParseConfigLine(command)
+  local commandLine = self:tryParseConfigLine(command)
 
-  if commandData[1] == "end" then
-    self:saveConfig()
+  if commandLine["command"] == "end" then
     return true
   end
 
-  table.insert(self._config, commandData)
+  table.insert(self._config, commandLine)
 
   return false
 end
@@ -143,13 +171,13 @@ function Turtle:go(direction, distance)
     turtle.turnLeft()
     turtle.turnLeft()
   elseif direction == "up" then
-    for i = 1, distance do
+    for _ = 1, distance do
       turtle.up()
     end
 
     return
   elseif direction == "down" then
-    for i = 1, distance do
+    for _ = 1, distance do
       turtle.down()
     end
 
@@ -175,7 +203,7 @@ function Turtle:dig(direction, distance)
 
   local allowedDirections = { "forward", "up", "down" }
 
-  if not allowedDirections[direction] then
+  if not Helpers.contains(allowedDirections, direction) then
     error("Invalid direction: " .. direction)
   end
 
@@ -195,13 +223,17 @@ function Turtle:dig(direction, distance)
 end
 
 function Turtle:tunnel(distance, size)
+  print("Tunneling " .. distance .. " blocks with a size of " .. size .. " blocks")
   for _ = 1, distance do
     self:dig()
 
     local r = 1
 
-    while r <= size do
+    if (size > 1) then
       self:go("right")
+    end
+
+    while r < size do
       self:dig()
 
       self:dig("down", 2 * r - 1)
@@ -209,7 +241,7 @@ function Turtle:tunnel(distance, size)
       self:go("back")
       self:dig(nil, 2 * r)
 
-      self:dig("up", 2 * r - 1)
+      self:dig("up", 2 * r)
 
       self:go("back")
       self:dig(nil, 2 * r)
@@ -217,8 +249,29 @@ function Turtle:tunnel(distance, size)
       r = r + 1
     end
 
-    self:go("back", size)
-    self:go("down", size)
-    self:go("right")
+    if (size > 1) then
+      self:go("back", size - 1)
+      self:go("down", size - 1)
+      self:go("right")
+    end
   end
+end
+
+function Turtle:fuel()
+  ok, err = turtle.refuel()
+
+  if not ok and self:fuellevel() <= self.minfuel then
+    error(err)
+  end
+end
+
+function Turtle:fuellevel()
+  return turtle.getFuelLevel()
+end
+
+function Turtle:log(msg)
+  --- @diagnostic disable-next-line: param-type-mismatch
+  local file = fs.open("turtle/log", "w")
+  file.write(os.time(os.date('!*t')) .. ": " .. msg)
+  file.close()
 end

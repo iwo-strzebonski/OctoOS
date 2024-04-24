@@ -1,3 +1,7 @@
 {
-  "recommendations": ["jackmacwindows.craftos-pc"]
+  "recommendations": [
+    "jackmacwindows.craftos-pc",
+    "jackmacwindows.vscode-computercraft",
+    "lemmmy.computercraft-extension-pack"
+  ]
 }
