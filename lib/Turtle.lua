@@ -147,13 +147,13 @@ function Turtle:go(direction, distance)
       turtle.up()
     end
 
-    goto finish
+    return
   elseif direction == "down" then
     for i = 1, distance do
       turtle.down()
     end
 
-    goto finish
+    return
   elseif direction == "left" then
     turtle.turnLeft()
   elseif direction == "right" then
@@ -167,8 +167,6 @@ function Turtle:go(direction, distance)
   for _ = 1, distance do
     assert(turtle.forward())
   end
-
-  ::finish::
 end
 
 function Turtle:dig(direction, distance)
@@ -221,5 +219,6 @@ function Turtle:tunnel(distance, size)
 
     self:go("back", size)
     self:go("down", size)
+    self:go("right")
   end
 end
