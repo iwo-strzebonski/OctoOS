@@ -65,11 +65,12 @@ function Turtle:runConfig()
     end
   end
 
-  print("Finished running config")
   self._config = {}
+  print("Finished running config")
+  print()
 end
 
-function Turtle:tryParseConfigLine(line)
+function Turtle:TryParseConfigLine(line)
   local lineData = {}
 
   local allowedCommands = { "go", "dig", "tunnel", "home", "end" }
@@ -151,7 +152,7 @@ function Turtle:getCommand()
   print("Enter a command:")
   local command = io.read()
 
-  local commandLine = self:tryParseConfigLine(command)
+  local commandLine = self:TryParseConfigLine(command)
 
   if commandLine["command"] == "end" then
     return true
@@ -253,15 +254,22 @@ function Turtle:tunnel(distance, size)
       self:go("back", size - 1)
       self:go("down", size - 1)
       self:go("right")
+      self:place("down")
     end
   end
 end
 
 function Turtle:fuel()
-  ok, err = turtle.refuel()
+  local selectOk, selectErr = self:SelectFirstAvailableSlot("fuel")
 
-  if not ok and self:fuellevel() <= self.minfuel then
-    error(err)
+  if not selectOk then
+    error(selectErr)
+  end
+
+  local refuelOk, refuelErr = turtle.refuel()
+
+  if not refuelOk and self:fuellevel() <= self.minfuel then
+    error(refuelErr)
   end
 end
 
@@ -274,4 +282,55 @@ function Turtle:log(msg)
   local file = fs.open("turtle/log", "w")
   file.write(os.time(os.date('!*t')) .. ": " .. msg)
   file.close()
+end
+
+function Turtle:place(direction)
+  direction = direction or "forward"
+
+  local selectOk, selectErr = self:SelectFirstAvailableSlot("block")
+
+  if not selectOk then
+    error(selectErr)
+  end
+
+  if direction == "forward" then
+    turtle.place()
+  elseif direction == "up" then
+    turtle.placeUp()
+  elseif direction == "down" then
+    turtle.placeDown()
+  else
+    error("Invalid direction: " .. direction)
+  end
+end
+
+function Turtle:SelectFirstAvailableSlot(mode)
+  mode = mode or "block"
+
+  local allowedModes = { "block", "fuel" }
+
+  if not Helpers.contains(allowedModes, mode) then
+    error("Invalid mode: " .. mode)
+  end
+
+  local isSuccess = false
+  local error = "No items found in inventory."
+
+  for i = 1, 16 do
+    if turtle.getItemCount(i) > 0 then
+      turtle.select(i)
+
+      if mode == "refuel" and not turtle.refuel(0) then
+        goto continue
+      end
+
+      isSuccess = true
+
+      return isSuccess
+    end
+
+    ::continue::
+  end
+
+  return isSuccess, error
 end
